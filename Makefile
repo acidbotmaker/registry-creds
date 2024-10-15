@@ -2,7 +2,7 @@
 # MAINTAINER: Steve Sloka <steve@stevesloka.com>
 # If you update this image please bump the tag value before pushing.
 
-TAG = 1.10.0
+TAG = 1.10.1
 PREFIX = acidbotmaker
 
 BIN = registry-creds
