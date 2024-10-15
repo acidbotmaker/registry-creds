@@ -1,9 +1,9 @@
-# Makefile for the Docker image upmcenterprises/registry-creds
+# Makefile for the Docker image acidbotmaker/registry-creds
 # MAINTAINER: Steve Sloka <steve@stevesloka.com>
 # If you update this image please bump the tag value before pushing.
 
 TAG = 1.11
-PREFIX = upmcenterprises
+PREFIX = acidbotmaker
 
 BIN = registry-creds
 

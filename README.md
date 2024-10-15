@@ -144,7 +144,7 @@ The value for `application_default_credentials.json` can be obtained with the fo
 
 ## DockerHub Image
 
-- [upmcenterprises/registry-creds](https://hub.docker.com/r/upmcenterprises/registry-creds/)
+- [acidbotmaker/registry-creds](https://hub.docker.com/r/acidbotmaker/registry-creds/)
 
 ## Developing Locally
 

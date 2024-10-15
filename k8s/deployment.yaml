@@ -14,7 +14,7 @@ spec:
         name: registry-creds
     spec:
       containers:
-      - image: upmcenterprises/registry-creds:1.10
+      - image: acidbotmaker/registry-creds:1.10
         name: registry-creds
         imagePullPolicy: Always
         env:
