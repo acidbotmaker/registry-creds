@@ -14,7 +14,7 @@ spec:
         name: registry-creds
     spec:
       containers:
-      - image: acidbotmaker/registry-creds:1.10.1
+      - image: acidbotmaker/registry-creds:1.10.2
         name: registry-creds
         imagePullPolicy: Always
         env:
