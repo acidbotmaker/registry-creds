@@ -72,6 +72,7 @@ var (
 	flags                    = flag.NewFlagSet("", flag.ContinueOnError)
 	argKubecfgFile           = flags.String("kubecfg-file", "", `Location of kubecfg file for access to kubernetes master service; --kube_master_url overrides the URL part of this; if neither this nor --kube_master_url are provided, defaults to service account tokens`)
 	argKubeMasterURL         = flags.String("kube-master-url", "", `URL to reach kubernetes master. Env variables in this flag will be expanded.`)
+	argUseOnly               = flags.String("use-only", "", `If only one repository is required to scan. E.g., aws, google, azure, private`)
 	argAWSSecretName         = flags.String("aws-secret-name", "awsecr-cred", `Default AWS secret name`)
 	argDPRSecretName         = flags.String("dpr-secret-name", "dpr-secret", `Default Docker Private Registry secret name`)
 	argGCRSecretName         = flags.String("gcr-secret-name", "gcr-secret", `Default GCR secret name`)
@@ -84,7 +85,7 @@ var (
 	argACRURL                = flags.String("acr-url", "", "Azure Container Registry URL")
 	argACRClientID           = flags.String("acr-client-id", "", "Azure Container Registry client ID (user name)")
 	argACRPassword           = flags.String("acr-password", "", "Azure Container Registry password (client secret)")
-	argRefreshMinutes        = flags.Int("refresh-mins", 60, `Default time to wait before refreshing (60 minutes)`)
+	argRefreshMinutes        = flags.Int("refresh-mins", 360, `Default time to wait before refreshing (360 minutes)`)
 	argSkipKubeSystem        = flags.Bool("skip-kube-system", true, `If true, will not attempt to set ImagePullSecrets on the kube-system namespace`)
 	argAWSAssumeRole         = flags.String("aws_assume_role", "", `If specified AWS will assume this role and use it to retrieve tokens`)
 	argTokenGenFxnRetryType  = flags.String("token-retry-type", defaultTokenGenRetryType, `The type of retry timer to use when generating a secret token; either simple or exponential (simple)`)
@@ -328,29 +329,37 @@ type SecretGenerator struct {
 func getSecretGenerators(c *controller) []SecretGenerator {
 	secretGenerators := make([]SecretGenerator, 0)
 
-	secretGenerators = append(secretGenerators, SecretGenerator{
-		TokenGenFxn: c.getGCRAuthorizationKey,
-		IsJSONCfg:   false,
-		SecretName:  *argGCRSecretName,
-	})
+	if c.gcrClient != nil {
+		secretGenerators = append(secretGenerators, SecretGenerator{
+			TokenGenFxn: c.getGCRAuthorizationKey,
+			IsJSONCfg:   false,
+			SecretName:  *argGCRSecretName,
+		})
+	}
 
-	secretGenerators = append(secretGenerators, SecretGenerator{
-		TokenGenFxn: c.getECRAuthorizationKey,
-		IsJSONCfg:   true,
-		SecretName:  *argAWSSecretName,
-	})
+	if c.ecrClient != nil {
+		secretGenerators = append(secretGenerators, SecretGenerator{
+			TokenGenFxn: c.getECRAuthorizationKey,
+			IsJSONCfg:   true,
+			SecretName:  *argAWSSecretName,
+		})
+	}
 
-	secretGenerators = append(secretGenerators, SecretGenerator{
-		TokenGenFxn: c.getDPRToken,
-		IsJSONCfg:   true,
-		SecretName:  *argDPRSecretName,
-	})
+	if c.dprClient != nil {
+		secretGenerators = append(secretGenerators, SecretGenerator{
+			TokenGenFxn: c.getDPRToken,
+			IsJSONCfg:   true,
+			SecretName:  *argDPRSecretName,
+		})
+	}
 
-	secretGenerators = append(secretGenerators, SecretGenerator{
-		TokenGenFxn: c.getACRToken,
-		IsJSONCfg:   true,
-		SecretName:  *argACRSecretName,
-	})
+	if c.acrClient != nil {
+		secretGenerators = append(secretGenerators, SecretGenerator{
+			TokenGenFxn: c.getACRToken,
+			IsJSONCfg:   true,
+			SecretName:  *argACRSecretName,
+		})
+	}
 
 	return secretGenerators
 }
@@ -656,7 +665,25 @@ func main() {
 	gcrClient := newGcrClient()
 	dprClient := newDprClient()
 	acrClient := newACRClient()
-	c := &controller{util, ecrClient, gcrClient, dprClient, acrClient}
+
+	var c *controller
+
+	if strings.Compare(*argUseOnly, "aws") == 0 {
+		logrus.Info("Using only AWS ECR")
+		c = &controller{util, ecrClient, nil, nil, nil}
+	} else if strings.Compare(*argUseOnly, "google") == 0 {
+		logrus.Info("Using only Google repo")
+		c = &controller{util, nil, gcrClient, nil, nil}
+	} else if strings.Compare(*argUseOnly, "azure") == 0 {
+		logrus.Info("Using only Azure repo")
+		c = &controller{util, nil, nil, acrClient, nil}
+	} else if strings.Compare(*argUseOnly, "private") == 0 {
+		logrus.Info("Using only private repo")
+		c = &controller{util, nil, nil, nil, dprClient}
+	} else {
+		logrus.Info("Using all cloud provider for docker repos")
+		c = &controller{util, ecrClient, gcrClient, acrClient, dprClient}
+	}
 
 	util.WatchNamespaces(time.Duration(*argRefreshMinutes)*time.Minute, func(ns *v1.Namespace) error {
 		return handler(c, ns)
